@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
-from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.model_selection import train_test_split
 
 # File path to your dataset
@@ -70,6 +70,8 @@ print(high_correlation_pairs)
 features_to_drop = set(col2 for _, col2 in high_correlation_pairs)
 print(f"Suggested Features to Drop: {features_to_drop}")
 
+df = df.drop(columns=features_to_drop, errors="ignore")  # Ignore errors if columns are missing
+
 ### Target Variable Analysis ###
 plt.figure(figsize=(8, 6))
 sns.histplot(df['outcome'], kde=True, bins=30)
@@ -80,45 +82,59 @@ plt.savefig(os.path.join(OUTPUT_FOLDER, "target_variable_distribution.png"))
 plt.close()
 print("Target variable distribution plot saved.")
 
-### Categorical Variables Encoding ###
+### Categorical Variables Encoding (One-Hot Encoding) ###
 categorical_cols = df.select_dtypes(include=['object']).columns.tolist()
-for col in categorical_cols:
-    print(f"Processing {col}...")
-    plt.figure(figsize=(10, 6))
-    sns.countplot(data=df, x=col, order=df[col].value_counts().index)
-    plt.title(f"Distribution of {col}")
-    plt.xticks(rotation=45)
-    plt.savefig(os.path.join(OUTPUT_FOLDER, f"{col}_distribution.png"))
-    plt.close()
 
-# Encode categorical variables for model training
-label_encoders = {}
-for col in categorical_cols:
-    le = LabelEncoder()
-    df[col] = le.fit_transform(df[col])
-    label_encoders[col] = le
+print("\nOne-Hot Encoding categorical variables...")
+one_hot_encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+encoded_cats = one_hot_encoder.fit_transform(df[categorical_cols])
 
-print("Categorical variables encoded.")
+# Convert encoded categorical variables to DataFrame
+encoded_df = pd.DataFrame(encoded_cats, columns=one_hot_encoder.get_feature_names_out(categorical_cols))
+
+# Drop original categorical columns and merge encoded ones
+df = df.drop(columns=categorical_cols)
+df = pd.concat([df, encoded_df], axis=1)
+
+print("Categorical variables encoded successfully.")
 
 ### Handling Missing Values ###
 numeric_columns = df.select_dtypes(include=['float64', 'int64']).columns
-df_cleaned = df.copy()
-df_cleaned[numeric_columns] = df_cleaned[numeric_columns].fillna(df_cleaned[numeric_columns].mean())
+df[numeric_columns] = df[numeric_columns].fillna(df[numeric_columns].mean())
 
-### Outlier Detection & Removal ###
-Q1 = df_cleaned[numeric_columns].quantile(0.25)
-Q3 = df_cleaned[numeric_columns].quantile(0.75)
-IQR = Q3 - Q1
-lower_bound = Q1 - 1.5 * IQR
-upper_bound = Q3 + 1.5 * IQR
+### Outlier Detection & Removal (Fixed!) ###
+# Dynamically filter numerical columns that still exist
+selected_numerical_cols = ['carat', 'depth', 'table', 'price', 'x', 'y', 'z']
+selected_numerical_cols = [col for col in selected_numerical_cols if col in df.columns]  # Only keep existing columns
 
-# Removing outliers
-df_cleaned = df_cleaned[~((df_cleaned[numeric_columns] < lower_bound) | (df_cleaned[numeric_columns] > upper_bound)).any(axis=1)]
+if selected_numerical_cols:
+    print(f"\nApplying outlier detection on: {selected_numerical_cols}")
+    Q1 = df[selected_numerical_cols].quantile(0.10)  # Relaxed from 25%
+    Q3 = df[selected_numerical_cols].quantile(0.90)  # Relaxed from 75%
+    IQR = Q3 - Q1
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+
+    # Removing only the most extreme outliers
+    df_cleaned = df[
+        ~((df[selected_numerical_cols] < lower_bound) | (df[selected_numerical_cols] > upper_bound)).any(axis=1)
+    ]
+else:
+    print("No numerical columns selected for outlier removal. Skipping...")
+    df_cleaned = df
+
+# Ensure data is not empty after outlier removal
+if df_cleaned.shape[0] == 0:
+    print("WARNING: All rows were removed after outlier removal. Adjusting threshold...")
+    df_cleaned = df  # Revert to original dataset if too many points are lost
+
 print(f"Data shape after outlier removal: {df_cleaned.shape}")
 
 ### Feature Scaling (Standardization) ###
 scaler = StandardScaler()
-df_cleaned[numeric_columns] = scaler.fit_transform(df_cleaned[numeric_columns])
+df_cleaned.loc[:, 'price'] = df_cleaned['price'].astype(float)
+df_cleaned.loc[:, numeric_columns] = scaler.fit_transform(df_cleaned[numeric_columns])
+
 
 ### Splitting Data for Model Training ###
 X = df_cleaned.drop(columns=['outcome'])  # Features

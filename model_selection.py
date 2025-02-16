@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import joblib
-from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV
+from sklearn.model_selection import train_test_split, cross_val_score, RandomizedSearchCV
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
@@ -19,7 +19,7 @@ y = df["outcome"]
 # Train/Validation Split (80/20)
 X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Define models with expanded hyperparameter tuning
+# Define models with hyperparameter tuning
 models = {
     "Linear Regression": (LinearRegression(), {}),
     "Decision Tree": (DecisionTreeRegressor(random_state=42), {
@@ -42,7 +42,7 @@ models = {
     })
 }
 
-# Evaluate models with cross-validation and hyperparameter tuning
+# Evaluate models with RandomizedSearchCV and cross-validation
 best_model = None
 best_score = -np.inf
 results = []
@@ -50,10 +50,10 @@ results = []
 for name, (model, params) in models.items():
     print(f"\nTraining {name}...")
     if params:
-        grid = GridSearchCV(model, params, cv=5, scoring='r2', n_jobs=-1)
-        grid.fit(X_train, y_train)
-        model = grid.best_estimator_
-        print(f"Best hyperparameters for {name}: {grid.best_params_}")
+        random_search = RandomizedSearchCV(model, params, cv=5, scoring='r2', n_iter=20, n_jobs=-1, random_state=42)
+        random_search.fit(X_train, y_train)
+        model = random_search.best_estimator_
+        print(f"Best hyperparameters for {name}: {random_search.best_params_}")
     else:
         scores = cross_val_score(model, X_train, y_train, cv=5, scoring='r2')
         print(f"{name} Cross-Validation R² Scores: {scores}")

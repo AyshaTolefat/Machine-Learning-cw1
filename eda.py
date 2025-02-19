@@ -7,13 +7,13 @@ import os
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.model_selection import train_test_split
 
-# File path to your dataset
+# File path to dataset
 DATA_PATH = "CW1_train.csv"
 
 # Load the dataset
 df = pd.read_csv(DATA_PATH)
 
-# Set a consistent style for visualizations
+#consistent style for visualizations
 sns.set(style="whitegrid")
 
 # Output folder for saving EDA visuals
@@ -66,7 +66,7 @@ for i in range(len(correlation_matrix.columns)):
 print("\nHighly Correlated Features (above 0.9):")
 print(high_correlation_pairs)
 
-# Suggesting to drop one of the highly correlated pairs
+#drop one of the highly correlated pairs
 features_to_drop = set(col2 for _, col2 in high_correlation_pairs)
 print(f"Suggested Features to Drop: {features_to_drop}")
 
@@ -102,7 +102,7 @@ print("Categorical variables encoded successfully.")
 numeric_columns = df.select_dtypes(include=['float64', 'int64']).columns
 df[numeric_columns] = df[numeric_columns].fillna(df[numeric_columns].mean())
 
-### Outlier Detection & Removal (Fixed!) ###
+### Outlier Detection & Removal ###
 # Dynamically filter numerical columns that still exist
 selected_numerical_cols = ['carat', 'depth', 'table', 'price', 'x', 'y', 'z']
 selected_numerical_cols = [col for col in selected_numerical_cols if col in df.columns]  # Only keep existing columns
@@ -130,7 +130,7 @@ if df_cleaned.shape[0] == 0:
 
 print(f"Data shape after outlier removal: {df_cleaned.shape}")
 
-### Feature Scaling (Standardization) ###
+### Feature Scaling ###
 scaler = StandardScaler()
 df_cleaned.loc[:, 'price'] = df_cleaned['price'].astype(float)
 df_cleaned.loc[:, numeric_columns] = scaler.fit_transform(df_cleaned[numeric_columns])
